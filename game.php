@@ -31,12 +31,6 @@ $db = new Database();
                 header("Location: index.php");
                 exit();
             }
-
-            if (isset($_POST['leaveParty'])) {
-                $db->createParty($_SESSION["selectedParty"]);
-                header("Location: game.php");
-                exit();
-            }
             ?>
         </div>
 

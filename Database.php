@@ -193,9 +193,7 @@ class Database {
         $userId = $_SESSION['user']['idUser'];
 
         $sql = "DELETE FROM Joueurs WHERE idUser = :userId AND idPartie = :idPartie";
-        
-        $this->checkParties();
-        
+                
         try {
             $stmt = $this->dbh->prepare($sql);
             $stmt->bindValue(':userId', $userId, PDO::PARAM_INT);
@@ -279,9 +277,15 @@ class Database {
                 $deleteSql = "DELETE FROM Parties WHERE idPartie = :idPartie";
                 $deleteStmt = $this->dbh->prepare($deleteSql);
 
+                $deleteSql2 = "DELETE FROM Joueurs WHERE idPartie = :idPartie";
+                $deleteStmt2 = $this->dbh->prepare($deleteSql2);
+
                 foreach ($emptyParties as $party) {
                     $deleteStmt->bindValue(':idPartie', $party['idPartie'], PDO::PARAM_INT);
                     $deleteStmt->execute();
+
+                    $deleteStmt2->bindValue(':idPartie', $party['idPartie'], PDO::PARAM_INT);
+                    $deleteStmt2->execute();
                 }
             }
         } 

@@ -43,6 +43,7 @@ $db = new Database();
 
             if (isset($_POST['partyLeave'])) {
                 $db->leaveParty($_SESSION['selectedParty']);
+                $db->checkParties();
                 header("Location: index.php");
                 exit();
             }
