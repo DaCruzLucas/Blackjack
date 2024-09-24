@@ -119,39 +119,30 @@ class Database {
     }
 
     function joinParty($idPartie) {
-        // Récupérer l'identifiant de l'utilisateur connecté
         $userId = $_SESSION['user']['idUser'];
+        $playerCount = $this->getPartyPlayersCount($idPartie);
     
+        $sqlCheck = "SELECT * FROM Joueurs WHERE idUser = :userId AND idPartie = :idPartie";
+        $sql = "INSERT INTO Joueurs (idUser, idPartie, chef, mise, canPlay, doubler, blackjack, cards) VALUES (:userId, :idPartie, 0, 0, 1, 0, 0, '')";
+
         try {
-            // Vérifier si le joueur est déjà dans la partie
-            $checkSql = "SELECT * FROM Joueurs WHERE idUser = :userId AND idPartie = :idPartie";
-            $checkStmt = $this->dbh->prepare($checkSql);
-            $checkStmt->bindValue(':userId', $userId, PDO::PARAM_INT);
-            $checkStmt->bindValue(':idPartie', $idPartie, PDO::PARAM_INT);
-            $checkStmt->execute();
-    
-            if ($checkStmt->rowCount() > 0) {
-                echo "Vous êtes déjà dans cette partie.";
+            $stmtCheck = $this->dbh->prepare($sqlCheck);
+            $stmtCheck->bindValue(':userId', $userId, PDO::PARAM_INT);
+            $stmtCheck->bindValue(':idPartie', $idPartie, PDO::PARAM_INT);
+            $stmtCheck->execute();
+            
+            if ($stmtCheck->rowCount() > 0) {
+                echo "Vous êtes déjà dans la partie";
+            }
+            else if ($playerCount >= 4) {
+                echo "La partie est complète";
                 return;
             }
     
-            // Compter le nombre de joueurs dans la partie
-            $playerCount = $this->getPartyPlayersCount($idPartie);
-            
-            // Vérifier si la partie est complète (maximum 4 joueurs)
-            if ($playerCount >= 4) {
-                echo "La partie est complète.";
-                return;
-            }
-    
-            // Ajouter l'utilisateur à la partie
-            $insertSql = "INSERT INTO Joueurs (idUser, idPartie, chef, mise, canPlay, doubler, blackjack, cards) 
-                          VALUES (:userId, :idPartie, 0, 0, 1, 0, 0, '')"; // chef=0, mise=0, canPlay=1, doubler=0, blackjack=0, cards=''
-            
-            $insertStmt = $this->dbh->prepare($insertSql);
-            $insertStmt->bindValue(':userId', $userId, PDO::PARAM_INT);
-            $insertStmt->bindValue(':idPartie', $idPartie, PDO::PARAM_INT);
-            $insertStmt->execute();
+            $stmt = $this->dbh->prepare($sql);
+            $stmt->bindValue(':userId', $userId, PDO::PARAM_INT);
+            $stmt->bindValue(':idPartie', $idPartie, PDO::PARAM_INT);
+            $stmt->execute();
     
             echo "Vous avez rejoint la partie avec succès.";
         } 
