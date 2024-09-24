@@ -17,7 +17,7 @@ class Database {
         $result = $this->dbh->query($sql);
 
         if ($result->rowCount() > 0) {
-            echo "L'utilisateur existe déjà.";
+            // echo "L'utilisateur existe déjà.";
         } 
         else {
             //$passwordHash = password_hash($password, PASSWORD_DEFAULT);
@@ -25,7 +25,7 @@ class Database {
             
             try {
                 $this->dbh->query($sql);
-                echo "Utilisateur créé avec succès";
+                // echo "Utilisateur créé avec succès";
             } 
             catch (PDOException $e) {
                 echo("Erreur lors de la création de l'utilisateur :".$e->getMessage()."<br>");
@@ -46,11 +46,11 @@ class Database {
                 header("Location: index.php");
             } 
             else {
-                echo "Mot de passe incorrect";
+                // echo "Identifiant ou mot de passe incorrect";
             }
         }
         else {
-            echo "Utilisateur non trouvé";
+            // echo "Identifiant ou mot de passe incorrect";
         }
     }
 
@@ -74,7 +74,7 @@ class Database {
 
         try {
             $this->dbh->query($sql);
-            echo "Mot de passe mis à jour avec succès.";
+            // echo "Mot de passe mis à jour avec succès.";
         } 
         catch (PDOException $e) {
             echo "Erreur lors de la mise à jour du mot de passe : " . $e->getMessage();
@@ -88,18 +88,15 @@ class Database {
             
             $stmt = $this->dbh->prepare($sql);
             $stmt->bindValue(':idUser', $idUser, PDO::PARAM_INT);
-            
-            // Exécuter la requête
             $stmt->execute();
             
-            // Récupérer le résultat
             $result = $stmt->fetch(PDO::FETCH_ASSOC);
             
-            // Vérifier si l'utilisateur existe et retourner son argent
             if ($result) {
                 return $result['money'];
-            } else {
-                echo "Utilisateur non trouvé.";
+            }
+            else {
+                // echo "Utilisateur non trouvé.";
                 return null;
             }
         } 
@@ -138,7 +135,7 @@ class Database {
             $stmt2->bindValue(':cards', '', PDO::PARAM_STR);
             $stmt2->execute();
 
-            echo "Partie créée avec succès.";
+            // echo "Partie créée avec succès.";
         } 
         catch (PDOException $e) {
             echo "Erreur lors de la création de la partie : " . $e->getMessage();
@@ -164,14 +161,14 @@ class Database {
             $stmtCheck2->execute();
             
             if ($stmtCheck->rowCount() == 0) {
-                echo "La partie n'existe pas";
+                // echo "La partie n'existe pas";
                 return false;
             }
             else if ($stmtCheck2->rowCount() > 0) {
-                echo "Vous êtes déjà dans la partie";
+                // echo "Vous êtes déjà dans la partie";
             }
             else if ($playerCount >= 4) {
-                echo "La partie est complète";
+                // echo "La partie est complète";
                 return false;
             }
             else {
@@ -183,7 +180,7 @@ class Database {
     
             $_SESSION['selectedParty'] = $idPartie;
 
-            echo "Vous avez rejoint la partie avec succès.";
+            // echo "Vous avez rejoint la partie avec succès.";
 
             return true;
         } 
@@ -206,11 +203,11 @@ class Database {
             $stmt->execute();
     
             if ($stmt->rowCount() > 0) {
-                echo "Vous avez quitté la partie.";
+                // echo "Vous avez quitté la partie.";
                 unset($_SESSION['selectedParty']);
             }
             else {
-                echo "Impossible de quitter la partie ou vous n'êtes pas dans cette partie.";
+                // echo "Impossible de quitter la partie ou vous n'êtes pas dans cette partie.";
             }
         } 
         catch (PDOException $e) {
