@@ -4,6 +4,9 @@
 .bg-chance {
     background-color: #E7E03C;
 }
+.bg-attention {
+    background-color: #C32A21;
+}
 input, .bouton {
     background-color: #D9D9D9;
 }

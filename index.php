@@ -30,13 +30,20 @@ $db = new Database();
 
             if (isset($_POST['partyCreate'])) {
                 $db->createParty($_POST['partyCreate']);
-                header("Location: index.php");
+                header("Location: game.php");
                 exit();
             }
 
             if (isset($_POST['partyJoin'])) {
-                $db->joinParty($_POST['partyCreate']);
-                header("Location: game.php");
+                if ($db->joinParty($_POST['partyJoin']) == true) {
+                    header("Location: game.php");
+                    exit();
+                }
+            }
+
+            if (isset($_POST['partyLeave'])) {
+                $db->leaveParty($_SESSION['selectedParty']);
+                header("Location: index.php");
                 exit();
             }
             ?>
@@ -60,7 +67,7 @@ $db = new Database();
                 </div>
             </div>
         </div>
-        
+
         <!-- Main -->
         <div class="row">
             <!-- Gestionnaire de parties -->
@@ -70,14 +77,16 @@ $db = new Database();
                     <div class="row py-2 mb-3">
                         <h3 class="text-center">Rejoindre une partie</h3>
                     </div>
-                    <div class="row px-2 py-2">
-                        <div class="col d-grid">
-                            <input type="text" name="partyJoin" placeholder="Identifiant" class="border-1 text-center rounded-4 py-2">
+                    <form action="index.php" method="post" class="">
+                        <div class="row px-2 py-2">
+                            <div class="col d-grid">
+                                <input type="text" name="partyJoin" placeholder="Identifiant" class="border-1 text-center rounded-4 py-2" required>
+                            </div>
+                            <div class="col d-grid">
+                                <button type="submit" class="bg-perso text-white border-0 rounded-4 py-2">Rejoindre</button>
+                            </div>
                         </div>
-                        <div class="col d-grid">
-                            <button type="submit" class="bg-perso text-white border-0 rounded-4 py-2">Rejoindre</button>
-                        </div>
-                    </div>
+                    </form>
 
                     <!-- Créer une partie -->
                     <div class="row py-2 pt-5 mb-3">
@@ -125,15 +134,15 @@ $db = new Database();
                     <div class="row m-2 text-center">
                         <div class="col-10 py-2 bouton rounded-4">
                             <div class="row">
-                                <div class="col-2">#<?php echo($partie['idPartie']); ?></div>
-                                <div class="col"><?php echo($partie['status']); ?></div>
-                                <div class="col-2"><?php echo($db->getPartyPlayersCount($partie['idPartie'])); ?>/4</div>
-                                <div class="col"><?php echo($db->getPartyOwner($partie['idPartie']))['username']; ?></div>
+                                <div class="col-2">#<?php echo ($partie['idPartie']); ?></div>
+                                <div class="col"><?php echo ($partie['status']); ?></div>
+                                <div class="col-2"><?php echo ($db->getPartyPlayersCount($partie['idPartie'])); ?>/4</div>
+                                <div class="col"><?php echo ($db->getPartyOwner($partie['idPartie']))['username']; ?></div>
                             </div>
                         </div>
                         <div class="col-2 d-grid">
-                            <form action="index.php" class="d-grid">
-                                <input type="hidden" name="partyJoin" value="<?php echo($partie['idPartie']); ?>">
+                            <form action="index.php" method="post" class="d-grid">
+                                <input type="hidden" name="partyJoin" value="<?php echo ($partie['idPartie']); ?>">
                                 <button type="submit" class="bg-perso text-white border-0 rounded-4">Rejoindre</button>
                             </form>
                         </div>

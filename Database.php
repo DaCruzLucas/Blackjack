@@ -81,6 +81,33 @@ class Database {
         }
     }
 
+    function getUserMoney($idUser) {
+        $sql = "SELECT money FROM Users WHERE idUser = :idUser";
+
+        try {
+            
+            $stmt = $this->dbh->prepare($sql);
+            $stmt->bindValue(':idUser', $idUser, PDO::PARAM_INT);
+            
+            // Exécuter la requête
+            $stmt->execute();
+            
+            // Récupérer le résultat
+            $result = $stmt->fetch(PDO::FETCH_ASSOC);
+            
+            // Vérifier si l'utilisateur existe et retourner son argent
+            if ($result) {
+                return $result['money'];
+            } else {
+                echo "Utilisateur non trouvé.";
+                return null;
+            }
+        } 
+        catch (PDOException $e) {
+            echo "Erreur lors de la récupération de l'argent de l'utilisateur : " . $e->getMessage();
+        }
+    }
+
     function createParty($type) {
         $private = ($type == "public") ? 0 : 1;
         $userId = $_SESSION["user"]["idUser"];
@@ -122,32 +149,72 @@ class Database {
         $userId = $_SESSION['user']['idUser'];
         $playerCount = $this->getPartyPlayersCount($idPartie);
     
-        $sqlCheck = "SELECT * FROM Joueurs WHERE idUser = :userId AND idPartie = :idPartie";
-        $sql = "INSERT INTO Joueurs (idUser, idPartie, chef, mise, canPlay, doubler, blackjack, cards) VALUES (:userId, :idPartie, 0, 0, 1, 0, 0, '')";
+        $sqlCheck = "SELECT * FROM Parties WHERE idPartie = :idPartie";
+        $sqlCheck2 = "SELECT * FROM Joueurs WHERE idUser = :userId AND idPartie = :idPartie";
+        $sql = "INSERT INTO Joueurs (idUser, idPartie, chef, mise, canPlay, doubler, blackjack, cards) VALUES (:userId, :idPartie, 0, 0, 0, 0, 0, '')";
 
         try {
             $stmtCheck = $this->dbh->prepare($sqlCheck);
-            $stmtCheck->bindValue(':userId', $userId, PDO::PARAM_INT);
             $stmtCheck->bindValue(':idPartie', $idPartie, PDO::PARAM_INT);
             $stmtCheck->execute();
+
+            $stmtCheck2 = $this->dbh->prepare($sqlCheck2);
+            $stmtCheck2->bindValue(':userId', $userId, PDO::PARAM_INT);
+            $stmtCheck2->bindValue(':idPartie', $idPartie, PDO::PARAM_INT);
+            $stmtCheck2->execute();
             
-            if ($stmtCheck->rowCount() > 0) {
+            if ($stmtCheck->rowCount() == 0) {
+                echo "La partie n'existe pas";
+                return false;
+            }
+            else if ($stmtCheck2->rowCount() > 0) {
                 echo "Vous êtes déjà dans la partie";
             }
             else if ($playerCount >= 4) {
                 echo "La partie est complète";
-                return;
+                return false;
+            }
+            else {
+                $stmt = $this->dbh->prepare($sql);
+                $stmt->bindValue(':userId', $userId, PDO::PARAM_INT);
+                $stmt->bindValue(':idPartie', $idPartie, PDO::PARAM_INT);
+                $stmt->execute();
             }
     
+            $_SESSION['selectedParty'] = $idPartie;
+
+            echo "Vous avez rejoint la partie avec succès.";
+
+            return true;
+        } 
+        catch (PDOException $e) {
+            echo "Erreur lors de la tentative de rejoindre la partie : " . $e->getMessage();
+        }
+    }
+
+    function leaveParty($idPartie) {
+        $userId = $_SESSION['user']['idUser'];
+
+        $sql = "DELETE FROM Joueurs WHERE idUser = :userId AND idPartie = :idPartie";
+        
+        $this->checkParties();
+        
+        try {
             $stmt = $this->dbh->prepare($sql);
             $stmt->bindValue(':userId', $userId, PDO::PARAM_INT);
             $stmt->bindValue(':idPartie', $idPartie, PDO::PARAM_INT);
             $stmt->execute();
     
-            echo "Vous avez rejoint la partie avec succès.";
+            if ($stmt->rowCount() > 0) {
+                echo "Vous avez quitté la partie.";
+                unset($_SESSION['selectedParty']);
+            }
+            else {
+                echo "Impossible de quitter la partie ou vous n'êtes pas dans cette partie.";
+            }
         } 
         catch (PDOException $e) {
-            echo "Erreur lors de la tentative de rejoindre la partie : " . $e->getMessage();
+            echo "Erreur lors de la tentative de quitter la partie : " . $e->getMessage();
         }
     }
 
@@ -199,6 +266,30 @@ class Database {
         } 
         catch (PDOException $e) {
             echo "Erreur lors du comptage des joueurs dans la partie : " . $e->getMessage();
+        }
+    }
+
+    function checkParties() {
+        try {
+            $sql = "SELECT p.idPartie FROM Parties p LEFT JOIN Joueurs j ON p.idPartie = j.idPartie WHERE j.idPartie IS NULL";
+            
+            $stmt = $this->dbh->prepare($sql);
+            $stmt->execute();
+
+            $emptyParties = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            
+            if ($emptyParties) {
+                $deleteSql = "DELETE FROM Parties WHERE idPartie = :idPartie";
+                $deleteStmt = $this->dbh->prepare($deleteSql);
+
+                foreach ($emptyParties as $party) {
+                    $deleteStmt->bindValue(':idPartie', $party['idPartie'], PDO::PARAM_INT);
+                    $deleteStmt->execute();
+                }
+            }
+        } 
+        catch (PDOException $e) {
+            echo "Erreur lors de la vérification des parties : " . $e->getMessage();
         }
     }
 
