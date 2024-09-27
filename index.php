@@ -17,6 +17,10 @@ $db = new Database();
     <link type="text/css" href="style.css" rel="stylesheet">
 
     <script src="https://kit.fontawesome.com/66c180b670.js" crossorigin="anonymous"></script>
+
+    <script>
+        
+    </script>
 </head>
 
 <body>
