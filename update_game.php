@@ -8,11 +8,15 @@ if (isset($_SESSION['selectedParty'])) {
     $joueurs = $db->getPlayerList($partyId);
     $tour = $db->getPartyTour($partyId);
     $status = $db->getPartyStatus($partyId);
+    $party = $db->getPartyInfos($partyId);
+    $userId = $_SESSION['user']['idUser'];
     
     $data = [
         'joueurs' => $joueurs,
+        'party' => $party,
         'tour' => $tour,
-        'status' => $status
+        'status' => $status,
+        'idUser' => $userId
     ];
     
     echo json_encode($data);

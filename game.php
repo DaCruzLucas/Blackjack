@@ -5,7 +5,6 @@ $db = new Database();
 ?>
 <!doctype html>
 <html lang="fr">
-
 <head>
     <title>Blackjack</title>
 
@@ -23,52 +22,70 @@ $db = new Database();
             // location.reload();
 
             fetch('update_game.php')
-                .then(response => response.json())
-                .then(data => {
-                    console.log(data);
-                    // Met à jour le tour
-                    // document.getElementById('currentTurn').textContent = 'Tour : ' + data.tour;
+            .then(response => response.json())
+            .then(data => {
+                console.log(data);
+                // Met à jour le tour
+                // document.getElementById('currentTurn').textContent = 'Tour : ' + data.tour;
 
-                    // Met à jour la liste des joueurs
-                    const joueurs = data.joueurs;
-                    for (let i = 0; i < 4; i++) {
-                        const playerElement = document.getElementById('player' + i);
-                        if (joueurs[i]) {
-                            if (i == 0) {
-                                playerElement.querySelector('.playerName').textContent = joueurs[i].username + " (Hôte)";
-                            }
-                            else {
-                                playerElement.querySelector('.playerName').textContent = joueurs[i].username;
-                            }
+                // Met à jour la liste des joueurs
+                const joueurs = data.joueurs;
+                for (let i = 0; i < 4; i++) {
+                    const playerElement = document.getElementById('player' + i);
+                    if (joueurs[i]) {
+                        // Recharger le joueur si besoin
+                        if (data.idUser == joueurs[i].idUser && joueurs[i].refresh == 1) {
+                            fetch('update_game_refresh.php')
+                            .then(function() {
+                                location.reload();
+                            })
+                            .catch(error => console.error('Erreur:', error));
+                        }
 
-                            const removeButton = playerElement.querySelector('.removePlayer');
-                            if (removeButton) {
-                                // Si le joueur est présent, afficher le bouton
-                                removeButton.style.display = 'block'; // Afficher le bouton
-                            } else {
-                                // Si le joueur n'est pas présent, masquer le bouton
-                                removeButton.style.display = 'none'; // Masquer le bouton
-                            }
-
-                            // Met à jour la mise
-                            const betElement = playerElement.querySelector('.playerBet');
-                            betElement.textContent = joueurs[i].mise === -1 ? '0$' : joueurs[i].mise + '$';
-
-                            // Met à jour le score
-                            const scoreElement = playerElement.querySelector('.playerScore');
-                            scoreElement.textContent = joueurs[i].score || '0';
-                        } 
+                        if (i == 0) {
+                            playerElement.querySelector('.playerName').textContent = joueurs[i].username + " (Hôte)";
+                        }
                         else {
-                            // Si le joueur n'est pas présent, on peut mettre à jour l'interface pour refléter cela
-                            playerElement.querySelector('.playerName').textContent = 'En attente...';
-                            playerElement.querySelector('.playerBet').textContent = '';
-                            playerElement.querySelector('.playerScore').textContent = '0';
+                            playerElement.querySelector('.playerName').textContent = joueurs[i].username;
+                        }
+
+                        const removeElement = playerElement.querySelector('.playerRemove');
+                        if (removeElement) removeElement.innerHTML = '<button class="text-white bg-attention rounded-3 border-0 removePlayer" style="display: inline;">X</button>';
+
+                        const betElement = playerElement.querySelector('.playerBet');
+                        betElement.textContent = joueurs[i].mise === -1 ? '0$' : joueurs[i].mise + '$';
+
+                        const scoreElement = playerElement.querySelector('.playerScore');
+                        if (joueurs[i].asCard == 1) {
+                            scoreElement.textContent = joueurs[i].score + "/" + (joueurs[i].score + 10);
+                        }
+                        else {
+                            scoreElement.textContent = joueurs[i].score;
                         }
                     }
-                })
-                .catch(error => console.error('Erreur:', error));
+                    else {
+                        // Si le joueur n'est pas présent, on peut mettre à jour l'interface pour refléter cela
+                        playerElement.querySelector('.playerName').textContent = 'En attente...';
+                        playerElement.querySelector('.playerBet').textContent = '';
+                        playerElement.querySelector('.playerScore').textContent = '0';
+
+                        const removeElement = playerElement.querySelector('.playerRemove');
+                        if (removeElement) removeElement.innerHTML = "";
+                    }
+                }
+
+                const croupierElement = document.getElementById('croupier');
+                croupierElement.textContent = data.party.croupier;
+            })
+            .catch(error => console.error('Erreur:', error));
 
         }, 1000);
+    </script>
+
+    <script>
+        function tirerCartes() {
+            
+        };
     </script>
 </head>
 
@@ -85,30 +102,33 @@ $db = new Database();
                 exit();
             }
 
-            if (isset($_POST["partyStart"])) {
-                if ($db->startParty($_SESSION["selectedParty"]) <= 20) {
-                    $db->resetPartyCards($_SESSION["selectedParty"]);
-                }
-                $db->startParty($_SESSION["selectedParty"]);
-                header("Location: game.php");
-            }
-
             if (isset($_POST["cardStay"])) {
-
+                $db->stayCard($_SESSION["selectedParty"]);
                 header("Location: game.php");
+                exit();
             }
             else if (isset($_POST["cardTake"])) {
-
+                $db->takeCard($_SESSION["selectedParty"]);
                 header("Location: game.php");
+                exit();
             }
             else if (isset($_POST["cardDouble"]) ) {
-
+                $db->doubleCard($_SESSION["selectedParty"]);
                 header("Location: game.php");
+                exit();
             }
 
             if (isset($_POST["bet"])) {
                 $db->betParty($_SESSION["selectedParty"], $_POST["bet"]);
                 header("Location: game.php");
+                exit();
+            }
+
+            if (isset($_POST["partyStart"])) {
+                $db->checkPartyCards($_SESSION["selectedParty"]);                
+                $db->startParty($_SESSION["selectedParty"]);
+                header("Location: game.php");
+                exit();
             }
             ?>
         </div>
@@ -151,9 +171,10 @@ $db = new Database();
                     <div class="main rounded-4 p-3">
                         <div class="row">
                             <div class="col text-start">
-                                <?php if ($_SESSION['user']['idUser'] == $db->getPartyOwner($_SESSION['selectedParty'])['idUser'] && $i != 0): ?>
-                                    <button class="text-white bg-attention rounded-3 border-0 removePlayer" style="display: none;">X</button>
+                                <?php if ($i != 0 && $_SESSION['user']['idUser'] == $db->getPartyOwner($_SESSION['selectedParty'])['idUser'] && isset($joueurs[$i])): ?>
+                                    <span class="playerRemove"><button class="text-white bg-attention rounded-3 border-0 removePlayer" style="display: inline;">X</button></span>
                                 <?php endif ?>
+                                
                                 <span class="playerName"><?php echo ($txt); ?></span>
                             </div>
                             <div class="col text-end">
@@ -173,7 +194,7 @@ $db = new Database();
                         </div>
 
                         <!-- Boutons de jeu + Score -->
-                        <?php if (isset($joueurs[$i]) && $joueurs[$i]['idUser'] == $_SESSION['user']['idUser'] && $joueurs[$i]['canPlay'] == 1): ?>
+                        <?php if (isset($joueurs[$i]) && $joueurs[$i]['idUser'] == $_SESSION['user']['idUser'] && $joueurs[$i]['canPlay'] == 1 && $_SESSION['user']['idUser'] == $db->getPartyTour($_SESSION['selectedParty'])): ?>
                             <form action="game.php" method="post">
                                 <div class="row mt-2">
                                     <div class="col d-grid">
@@ -182,9 +203,11 @@ $db = new Database();
                                     <div class="col d-grid">
                                         <button type="submit" name="cardTake" class="text-white bg-perso rounded-3 border-0 py-2 px-2">Tirer</button>
                                     </div>
-                                    <div class="col d-grid">
-                                        <button type="submit" name="cardDouble" class="text-white bg-primary rounded-3 border-0 py-2 px-2">Doubler</button>
-                                    </div>
+                                    <?php if ($joueurs[$i]['canDouble'] == 1): ?>
+                                        <div class="col d-grid">
+                                            <button type="submit" name="cardDouble" class="text-white bg-primary rounded-3 border-0 py-2 px-2">Doubler</button>
+                                        </div>
+                                    <?php endif ?>
                                 </div>
                             </form>
 
@@ -225,7 +248,7 @@ $db = new Database();
             </div>
             <div class="col-6">
                 <div class="main rounded-4 p-3 text-center">
-                    <h1 class="py-5">0</h1>
+                    <h1 class="py-5"><span id="croupier"><?php echo($db->getPartyInfos($_SESSION['selectedParty'])['croupier']) ?></span></h1>
                 </div>
             </div>
             <div class="col-3">
@@ -241,10 +264,15 @@ $db = new Database();
                 <?php endif ?>
             </div>
         </div>
+
+        <div class="text-center mt-3">
+            <?php
+            
+            ?>
+        </div>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.11.8/dist/umd/popper.min.js" integrity="sha384-I7E8VVD/ismYTF4hNIPjVp/Zjvgyol6VFvRkX/vR+Vc4jQkC+hVqc2pM8ODewa9r" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.min.js" integrity="sha384-BBtl+eGJRgqQAUMxJ7pMwbEyER4l1g+O15P+16Ep7Q9Q+zqX6gSbd85u4mG4QzX+" crossorigin="anonymous"></script>
 </body>
-
 </html>

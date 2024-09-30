@@ -19,8 +19,58 @@ $db = new Database();
     <script src="https://kit.fontawesome.com/66c180b670.js" crossorigin="anonymous"></script>
 
     <script>
-        
-    </script>
+    setInterval(function() {
+        fetch('update_lobby.php')
+            .then(response => response.json())
+            .then(data => {
+                const partiesContainer = document.querySelector('.parties');  // Sélectionne le conteneur de la liste des parties
+                let html = '';
+
+                if (data.length > 0) {
+                    html += `
+                        <div class="row m-2 text-center rounded-4">
+                            <div class="col-10 py-2 bouton rounded-4">
+                                <div class="row">
+                                    <div class="col-2"><b>ID</b></div>
+                                    <div class="col"><b>Status</b></div>
+                                    <div class="col-2"><b>Joueurs</b></div>
+                                    <div class="col"><b>Chef</b></div>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                    
+                    data.forEach(partie => {
+                        html += `
+                            <div class="row m-2 text-center">
+                                <div class="col-10 py-2 bouton rounded-4">
+                                    <div class="row">
+                                        <div class="col-2">#${partie.idPartie}</div>
+                                        <div class="col">${partie.status}</div>
+                                        <div class="col-2">${partie.playersCount}/4</div>
+                                        <div class="col">${partie.owner}</div>
+                                    </div>
+                                </div>
+                                <div class="col-2 d-grid">
+                                    <form action="index.php" method="post" class="d-grid">
+                                        <input type="hidden" name="partyJoin" value="${partie.idPartie}">
+                                        <button type="submit" class="bg-perso text-white border-0 rounded-4">Rejoindre</button>
+                                    </form>
+                                </div>
+                            </div>
+                        `;
+                    });
+                } 
+                else {
+                    html += '<div class="row"><div class="text-center">Aucune partie disponible</div></div>';
+                }
+
+                // Insère le nouveau HTML dans le conteneur
+                partiesContainer.innerHTML = html;
+            })
+            .catch(error => console.error('Erreur lors du chargement des parties :', error));
+    }, 1000);
+</script>
 </head>
 
 <body>
@@ -122,7 +172,7 @@ $db = new Database();
         </div>
 
         <!-- Liste des parties -->
-        <div class="rounded-4 mt-3 p-2 main">
+        <div class="rounded-4 mt-3 p-2 main parties">
             <?php $parties = $db->getParties() ?>
             <?php if ($parties != null): ?>
                 <div class="row m-2 text-center rounded-4">

@@ -109,16 +109,19 @@ class Database {
         $private = ($type == "public") ? 0 : 1;
         $userId = $_SESSION["user"]["idUser"];
 
-        $sql = "INSERT INTO Parties (status, private, croupier, cards, tour) VALUES (:status, :private, :croupier, :cards, :tour)";
-        $sql2 = "INSERT INTO Joueurs (idUser, idPartie, chef, mise, canPlay, doubler, blackjack, score, asCard) VALUES (:idUser, :idPartie, :chef, :mise, :canPlay, :doubler, :blackjack, :score, :asCard)";
+        $sql = "INSERT INTO Parties (status, private, croupier, cards, tour, croupier2, asCard, blackjack) VALUES (:status, :private, :croupier, :cards, :tour, :croupier2, :asCard, :blackjack)";
+        $sql2 = "INSERT INTO Joueurs (idUser, idPartie, chef, mise, canPlay, doubler, blackjack, score, asCard, refresh, canDouble, hasWon) VALUES (:idUser, :idPartie, :chef, :mise, :canPlay, :doubler, :blackjack, :score, :asCard, :refresh, :canDouble, :hasWon)";
 
         try {
             $stmt = $this->dbh->prepare($sql);
             $stmt->bindValue(':status', 'En attente', PDO::PARAM_STR);
             $stmt->bindValue(':private', $private, PDO::PARAM_BOOL);
             $stmt->bindValue(':croupier', 0, PDO::PARAM_INT);
+            $stmt->bindValue(':croupier2', 0, PDO::PARAM_INT);
             $stmt->bindValue(':cards', '1234567890000123456789000012345678900001234567890000', PDO::PARAM_STR);
             $stmt->bindValue(':tour', -1, PDO::PARAM_INT);
+            $stmt->bindValue(':asCard', 0, PDO::PARAM_INT);
+            $stmt->bindValue(':blackjack', 0, PDO::PARAM_INT);
             $stmt->execute();
 
             $partieId = $this->dbh->lastInsertId();
@@ -134,6 +137,9 @@ class Database {
             $stmt2->bindValue(':blackjack', 0, PDO::PARAM_BOOL);
             $stmt2->bindValue(':score', 0, PDO::PARAM_INT);
             $stmt2->bindValue(':asCard', 0, PDO::PARAM_BOOL);
+            $stmt2->bindValue(':refresh', 0, PDO::PARAM_BOOL);
+            $stmt2->bindValue(':canDouble', 1, PDO::PARAM_BOOL);
+            $stmt2->bindValue(':hasWon', 0, PDO::PARAM_BOOL);
             $stmt2->execute();
 
             // echo "Partie créée avec succès.";
@@ -149,7 +155,7 @@ class Database {
     
         $sqlCheck = "SELECT * FROM Parties WHERE idPartie = :idPartie";
         $sqlCheck2 = "SELECT * FROM Joueurs WHERE idUser = :userId AND idPartie = :idPartie";
-        $sql = "INSERT INTO Joueurs (idUser, idPartie, chef, mise, canPlay, doubler, blackjack, score, asCard) VALUES (:userId, :idPartie, 0, -1, 0, 0, 0, 0, 0)";
+        $sql = "INSERT INTO Joueurs (idUser, idPartie, chef, mise, canPlay, doubler, blackjack, score, asCard, refresh, canDouble, hasWon) VALUES (:userId, :idPartie, 0, -1, 0, 0, 0, 0, 0, 0, 1, 0)";
 
         try {
             $stmtCheck = $this->dbh->prepare($sqlCheck);
@@ -224,6 +230,11 @@ class Database {
                     // echo "Nouveau chef défini";
                 }
             }
+
+            $sql = "UPDATE Joueurs SET refresh = 1 WHERE idPartie = :idPartie";
+            $stmt = $this->dbh->prepare($sql);
+            $stmt->bindValue(':idPartie', $idPartie, PDO::PARAM_INT);
+            $stmt->execute();
     
             if ($stmtDelete->rowCount() > 0) {
                 unset($_SESSION['selectedParty']);
@@ -232,6 +243,8 @@ class Database {
             else {
                 // echo "Impossible de quitter la partie ou vous n'êtes pas dans cette partie.";
             }
+
+            $this->setPartyTour($idPartie);
         } 
         catch (PDOException $e) {
             echo "Erreur lors de la tentative de quitter la partie : " . $e->getMessage();
@@ -239,7 +252,7 @@ class Database {
     }
 
     function getPlayerList($idPartie) {
-        $sql = "SELECT Users.idUser, Users.username, Joueurs.canPlay, Joueurs.mise, Joueurs.doubler, Joueurs.blackjack, Joueurs.score, Joueurs.asCard FROM Joueurs JOIN Users ON Joueurs.idUser = Users.idUser WHERE Joueurs.idPartie = :idPartie ORDER BY Joueurs.idJoueur";
+        $sql = "SELECT Users.idUser, Users.username, Joueurs.canPlay, Joueurs.mise, Joueurs.doubler, Joueurs.blackjack, Joueurs.score, Joueurs.asCard, Joueurs.refresh, Joueurs.canDouble, Joueurs.hasWon FROM Joueurs JOIN Users ON Joueurs.idUser = Users.idUser WHERE Joueurs.idPartie = :idPartie ORDER BY Joueurs.idJoueur";
     
         try {
             $stmt = $this->dbh->prepare($sql);
@@ -334,7 +347,7 @@ class Database {
         }
     }
 
-    function getPartyCardsCount($idPartie) {
+    function checkPartyCards($idPartie) {
         $sql = "SELECT CHAR_LENGTH(cards) AS nbCaracteres FROM Parties WHERE idPartie = :idPartie";
         
         try {
@@ -344,21 +357,17 @@ class Database {
             
             $result = $stmt->fetch(PDO::FETCH_ASSOC);
             
-            if ($result) {
-                return $result['nbCaracteres'];
-            } 
-            else {
-                return 0;
+            if ($result && $result['nbCaracteres'] <= 20) {
+                $sql2 = "UPDATE Parties SET cards = :updatedCards WHERE idPartie = :idPartie";
+                $stmt2 = $this->dbh->prepare($sql2);
+                $stmt2->bindValue(':updatedCards', '1234567890000123456789000012345678900001234567890000', PDO::PARAM_STR);
+                $stmt->execute();
             }
         } 
         catch (PDOException $e) {
             echo "Erreur lors de la récupération du nombre de cartes : " . $e->getMessage();
             return false;
         }
-    }
-
-    function resetPartyCards($idPartie) {
-        
     }
 
     function pickRandomCard($idPartie) {
@@ -425,7 +434,322 @@ class Database {
     
     
     function startParty($idPartie) {
+        try {
+            // Changer les mises à 0
+            $sql = "UPDATE Joueurs SET mise = 0, refresh = 1 WHERE idPartie = :idPartie AND mise = -1";
+            $stmt = $this->dbh->prepare($sql);
+            $stmt->bindValue(':idPartie', $idPartie, PDO::PARAM_STR);
+            $stmt->execute();
 
+            // Changer le status de la partie
+            $sql = "UPDATE Parties SET status = 'Tirage des cartes' WHERE idPartie = :idPartie";
+            $stmt = $this->dbh->prepare($sql);
+            $stmt->bindValue(':idPartie', $idPartie, PDO::PARAM_STR);
+            $stmt->execute();
+        
+            $joueurs = $this->getPlayerList($idPartie);
+        
+            foreach ($joueurs as $joueur) {
+                if ($joueur['mise'] > 0) {
+                    for ($i= 0; $i < 2; $i++) {
+                        $carte = $this->pickRandomCard($idPartie);
+
+                        $asCard = 0;
+                        $blackjack = 0;
+                    
+                        $sql = "SELECT score FROM Joueurs WHERE idPartie = :idPartie AND idUser = :idUser";
+                        $stmt = $this->dbh->prepare($sql);
+                        $stmt->bindValue(':idPartie', $idPartie, PDO::PARAM_INT);
+                        $stmt->bindValue(':idUser', $joueur['idUser'], PDO::PARAM_INT);
+                        $stmt->execute();
+                        $currentScore = $stmt->fetchColumn();
+
+                        if ($carte == 0) {
+                            $carte = 10;
+                        }
+                        else if ($carte == 1) {
+                            $asCard = 1;
+                        }
+                    
+                        $newScore = $currentScore + $carte;
+
+                        if ($asCard == 1 && $newScore + 10 == 21) {
+                            $blackjack = 1;
+                            $asCard = 0;
+                            $newScore = 21;
+                        }
+                        else if ($newScore + 10 > 21) {
+                            $asCard = 0;
+                        }
+                    
+                        $sql = "UPDATE Joueurs SET score = :score, asCard = :asCard, blackjack = :blackjack WHERE idPartie = :idPartie AND idUser = :idUser";
+                        $stmt = $this->dbh->prepare($sql);
+                        $stmt->bindValue(':score', $newScore, PDO::PARAM_INT);
+                        $stmt->bindValue(':asCard', $asCard, PDO::PARAM_BOOL);
+                        $stmt->bindValue(':blackjack', $blackjack, PDO::PARAM_BOOL);
+                        $stmt->bindValue(':idPartie', $idPartie, PDO::PARAM_INT);
+                        $stmt->bindValue(':idUser', $joueur['idUser'], PDO::PARAM_INT);
+                        $stmt->execute();
+                    
+                        // echo "Carte tirée pour " . $joueur['username'] . ": " . $carte . "\n";
+        
+                        sleep(1);
+                    }
+                }
+            }
+
+            // Tirage croupier
+            $carte1 = $this->pickRandomCard($idPartie);
+            $carte2 = $this->pickRandomCard($idPartie);
+
+            $asCard = 0;
+            $blackjack = 0;
+
+            if ($carte1 == 0) {
+                $carte1 = 10;
+            }
+            if ($carte2 == 0) {
+                $carte2 = 10;
+            }
+            if ($carte1 == 1 || $carte2 == 1) {
+                $asCard = 1;
+            }
+
+            if ($asCard == 1 && $carte1 + $carte2 + 10 == 21) {
+                $blackjack = 1;
+                $asCard = 0;
+                $carte1 = 21;
+            }
+            else if ($asCard == 1 && $carte1 + $carte2 + 10 > 21) {
+                $asCard = 0;
+            }
+
+            $sql = "UPDATE Parties SET croupier = :croupier, blackjack = :blackjack, asCard = :asCard WHERE idPartie = :idPartie";
+            $stmt = $this->dbh->prepare($sql);
+            $stmt->bindValue(':croupier', $carte1, PDO::PARAM_INT);
+            $stmt->bindValue(':blackjack', $blackjack, PDO::PARAM_BOOL);
+            $stmt->bindValue(':asCard', $asCard, PDO::PARAM_BOOL);
+            $stmt->bindValue(':idPartie', $idPartie, PDO::PARAM_INT);
+            $stmt->execute();
+
+            $sql = "UPDATE Parties SET croupier2 = :croupier2 WHERE idPartie = :idPartie";
+            $stmt = $this->dbh->prepare($sql);
+            $stmt->bindValue(':croupier2', $carte2, PDO::PARAM_INT);
+            $stmt->bindValue(':idPartie', $idPartie, PDO::PARAM_INT);
+            $stmt->execute();
+
+            if ($blackjack == 1) {
+                $this->endParty($idPartie);
+
+                // Changer le statut de la partie
+                $sql = "UPDATE Parties SET status = 'En attente' WHERE idPartie = :idPartie";
+                $stmt = $this->dbh->prepare($sql);
+                $stmt->bindValue(':idPartie', $idPartie, PDO::PARAM_INT);
+                $stmt->execute();
+            }
+            else {
+                // Changer le statut de la partie
+                $sql = "UPDATE Parties SET status = 'En cours' WHERE idPartie = :idPartie";
+                $stmt = $this->dbh->prepare($sql);
+                $stmt->bindValue(':idPartie', $idPartie, PDO::PARAM_INT);
+                $stmt->execute();
+
+                // Changer les mises à 0
+                $sql = "UPDATE Joueurs SET canPlay = 1, refresh = 1 WHERE idPartie = :idPartie AND mise > 0";
+                $stmt = $this->dbh->prepare($sql);
+                $stmt->bindValue(':idPartie', $idPartie, PDO::PARAM_INT);
+                $stmt->execute();
+            }
+
+            $this->setPartyTour($idPartie);
+        }
+        catch (PDOException $e) {
+            echo "Erreur lors de l'interaction : " . $e->getMessage();
+        }
+    }
+
+    function endParty($idPartie) {
+        try {
+            
+        }
+        catch (PDOException $e) {
+            echo "Erreur lors de l'interaction : " . $e->getMessage();
+        }
+    }
+
+    function takeCard($idPartie) {
+        $userId = $_SESSION['user']['idUser'];
+        
+        try {
+            $sql = "SELECT score, asCard FROM Joueurs WHERE idPartie = :idPartie AND idUser = :idUser";
+            $stmt = $this->dbh->prepare($sql);
+            $stmt->bindValue(':idPartie', $idPartie, PDO::PARAM_INT);
+            $stmt->bindValue(':idUser', $userId, PDO::PARAM_INT);
+            $stmt->execute();
+            $result = $stmt->fetch(PDO::FETCH_ASSOC);
+
+            $carte = $this->pickRandomCard($idPartie);
+
+            $oldScore = $result['score'];
+
+            // Vérifications de la carte
+            $asCard = $result['asCard'];
+
+            if ($carte == 0) {
+                $carte = 10;
+            }
+            else if ($carte == 1) {
+                $asCard = 1;
+            }
+
+            // Peut encore jouer ?
+            $canPlay = 1;
+            if ($oldScore + $carte > 20) {
+                $canPlay = 0;
+            }
+        
+            $newScore = $oldScore + $carte;
+
+            if ($newScore + 10 > 21) {
+                $asCard = 0;
+            }
+
+            $refresh = 0;
+            if ($canPlay == 0) {
+                $refresh = 1;
+            }
+
+            $sql = "UPDATE Joueurs SET score = :score, asCard = :asCard, canPlay = :canPlay, refresh = :refresh, canDouble = 0 WHERE idPartie = :idPartie AND idUser = :idUser";
+            $stmt = $this->dbh->prepare($sql);
+            $stmt->bindValue(':score', $newScore, PDO::PARAM_INT);
+            $stmt->bindValue(':asCard', $asCard, PDO::PARAM_BOOL);
+            $stmt->bindValue(':canPlay', $canPlay, PDO::PARAM_BOOL);
+            $stmt->bindValue(':refresh', $refresh, PDO::PARAM_BOOL);
+            $stmt->bindValue(':idPartie', $idPartie, PDO::PARAM_INT);
+            $stmt->bindValue(':idUser', $userId, PDO::PARAM_INT);
+            $stmt->execute();
+
+            if ($canPlay == 0) {
+                $this->setPartyTour($idPartie);
+            }
+        }
+        catch (PDOException $e) {
+            echo "Erreur lors de l'interaction : " . $e->getMessage();
+        }
+    }
+
+    function stayCard($idPartie) {
+        $userId = $_SESSION['user']['idUser'];
+
+        try {
+            $sql = "SELECT score, asCard FROM Joueurs WHERE idPartie = :idPartie AND idUser = :idUser";
+            $stmt = $this->dbh->prepare($sql);
+            $stmt->bindValue(':idPartie', $idPartie, PDO::PARAM_INT);
+            $stmt->bindValue(':idUser', $userId, PDO::PARAM_INT);
+            $stmt->execute();
+            $result = $stmt->fetch(PDO::FETCH_ASSOC);
+
+            $newScore = $result['score'];
+
+            if ($result['asCard'] == 1) {
+                $newScore += 10;
+            }
+
+            $sql = "UPDATE Joueurs SET score = :score, asCard = :asCard, canPlay = :canPlay, refresh = :refresh WHERE idPartie = :idPartie AND idUser = :idUser";
+            $stmt = $this->dbh->prepare($sql);
+            $stmt->bindValue(':score', $newScore, PDO::PARAM_INT);
+            $stmt->bindValue(':asCard', 0, PDO::PARAM_BOOL);
+            $stmt->bindValue(':canPlay', 0, PDO::PARAM_BOOL);
+            $stmt->bindValue(':refresh', 1, PDO::PARAM_BOOL);
+            $stmt->bindValue(':idPartie', $idPartie, PDO::PARAM_INT);
+            $stmt->bindValue(':idUser', $userId, PDO::PARAM_INT);
+            $stmt->execute();
+
+            $this->setPartyTour($idPartie);
+        }
+        catch (PDOException $e) {
+            echo "Erreur lors de l'interaction : " . $e->getMessage();
+        }
+    }
+
+    function doubleCard($idPartie) {
+        $userId = $_SESSION['user']['idUser'];
+
+        try {
+            $sql = "SELECT score, asCard, mise FROM Joueurs WHERE idPartie = :idPartie AND idUser = :idUser";
+            $stmt = $this->dbh->prepare($sql);
+            $stmt->bindValue(':idPartie', $idPartie, PDO::PARAM_INT);
+            $stmt->bindValue(':idUser', $userId, PDO::PARAM_INT);
+            $stmt->execute();
+            $result = $stmt->fetch(PDO::FETCH_ASSOC);
+
+            $carte = $this->pickRandomCard($idPartie);
+            
+            $newMise = $result['mise'] * 2;
+            $asCard = $result['asCard'];
+
+            if ($carte == 0) {
+                $carte = 10;
+            }
+            else if ($carte == 1) {
+                $asCard = 1;
+            }
+        
+            $newScore = $result['score'] + $carte;
+
+            if ($newScore + 10 > 21) {
+                $asCard = 0;
+            }
+
+            if ($asCard == 1) {
+                $newScore += 10;
+            }
+
+            $sql = "UPDATE Joueurs SET score = :score, mise = :mise, asCard = :asCard, canPlay = :canPlay, refresh = :refresh WHERE idPartie = :idPartie AND idUser = :idUser";
+            $stmt = $this->dbh->prepare($sql);
+            $stmt->bindValue(':score', $newScore, PDO::PARAM_INT);
+            $stmt->bindValue(':mise', $newMise, PDO::PARAM_INT);
+            $stmt->bindValue(':asCard', 0, PDO::PARAM_BOOL);
+            $stmt->bindValue(':canPlay', 0, PDO::PARAM_BOOL);
+            $stmt->bindValue(':refresh', 1, PDO::PARAM_BOOL);
+            $stmt->bindValue(':idPartie', $idPartie, PDO::PARAM_INT);
+            $stmt->bindValue(':idUser', $userId, PDO::PARAM_INT);
+            $stmt->execute();
+
+            $this->setPartyTour($idPartie);
+        }
+        catch (PDOException $e) {
+            echo "Erreur lors de l'interaction : " . $e->getMessage();
+        }
+    }
+
+    function setPartyTour($idPartie) {
+        $sql = "SELECT idUser FROM Joueurs WHERE idPartie = :idPartie AND canPlay = 1 ORDER BY idJoueur LIMIT 1";
+        $stmt = $this->dbh->prepare($sql);
+        $stmt->bindValue(':idPartie', $idPartie, PDO::PARAM_INT);
+        $stmt->execute();
+        $result = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        if ($result) {
+            $sql = "UPDATE Parties SET tour = :tour WHERE idPartie = :idPartie";
+            $stmt = $this->dbh->prepare($sql);
+            $stmt->bindValue(':tour', $result['idUser'], PDO::PARAM_INT);
+            $stmt->bindValue(':idPartie', $idPartie, PDO::PARAM_INT);
+            $stmt->execute();
+
+            $sql = "UPDATE Joueurs SET refresh = 1 WHERE idPartie = :idPartie AND idUser = :idUser";
+            $stmt = $this->dbh->prepare($sql);
+            $stmt->bindValue(':idUser', $result['idUser'], PDO::PARAM_INT);
+            $stmt->bindValue(':idPartie', $idPartie, PDO::PARAM_INT);
+            $stmt->execute();
+        }
+        else {
+            $sql = "UPDATE Parties SET tour = :tour WHERE idPartie = :idPartie";
+            $stmt = $this->dbh->prepare($sql);
+            $stmt->bindValue(':tour', -1, PDO::PARAM_INT);
+            $stmt->bindValue(':idPartie', $idPartie, PDO::PARAM_INT);
+            $stmt->execute();
+        }
     }
 
     function getPartyPlayersCount($idPartie) {
@@ -438,6 +762,22 @@ class Database {
             
             $result = $stmt->fetch(PDO::FETCH_ASSOC);
             return $result['playerCount'];
+        } 
+        catch (PDOException $e) {
+            echo "Erreur lors du comptage des joueurs dans la partie : " . $e->getMessage();
+        }
+    }
+
+    function getPartyInfos($idPartie) {
+        $sql = "SELECT croupier, croupier2, asCard, blackjack FROM Parties WHERE idPartie = :idPartie";
+
+        try {
+            $stmt = $this->dbh->prepare($sql);
+            $stmt->bindValue(':idPartie', $idPartie, PDO::PARAM_INT);
+            $stmt->execute();
+            
+            $result = $stmt->fetch(PDO::FETCH_ASSOC);
+            return $result;
         } 
         catch (PDOException $e) {
             echo "Erreur lors du comptage des joueurs dans la partie : " . $e->getMessage();
@@ -471,6 +811,21 @@ class Database {
         } 
         catch (PDOException $e) {
             echo "Erreur lors de la vérification des parties : " . $e->getMessage();
+        }
+    }
+
+    function resetRefresh($idPartie) {
+        $userId = $_SESSION['user']['idUser'];
+        $sql = "UPDATE Joueurs SET refresh = 0 WHERE idPartie = :idPartie AND idUser = :idUser";
+    
+        try {
+            $stmt = $this->dbh->prepare($sql);
+            $stmt->bindParam(':idPartie', $idPartie, PDO::PARAM_INT);
+            $stmt->bindParam(':idUser', $userId, PDO::PARAM_INT);
+            $stmt->execute();
+        } 
+        catch (PDOException $e) {
+            echo "Erreur lors de la réinitialisation de 'refresh' : " . $e->getMessage();
         }
     }
 
