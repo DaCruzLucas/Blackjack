@@ -80,6 +80,11 @@ $db = new Database();
             .catch(error => console.error('Erreur:', error));
 
         }, 1000);
+
+        function startBtn(event) {
+            event.target.style.display = "none";
+            event.target.form.submit();
+        }
     </script>
 </head>
 
@@ -191,14 +196,14 @@ $db = new Database();
                         <?php if (isset($joueurs[$i]) && $joueurs[$i]['idUser'] == $_SESSION['user']['idUser'] && $joueurs[$i]['canPlay'] == 1 && $_SESSION['user']['idUser'] == $db->getPartyTour($_SESSION['selectedParty'])): ?>
                             <form action="game.php" method="post">
                                 <div class="row mt-2">
-                                    <div class="col d-grid">
+                                    <div class="col-4 d-grid">
                                         <button type="submit" name="cardStay" class="text-white bg-attention rounded-3 border-0 py-2 px-2">Rester</button>
                                     </div>
-                                    <div class="col d-grid">
+                                    <div class="col-4 d-grid">
                                         <button type="submit" name="cardTake" class="text-white bg-perso rounded-3 border-0 py-2 px-2">Tirer</button>
                                     </div>
-                                    <?php if ($joueurs[$i]['canDouble'] == 1): ?>
-                                        <div class="col d-grid">
+                                    <?php if ($joueurs[$i]['canDouble'] == 1 && $joueurs[$i]['money'] >= $joueurs[$i]['mise']): ?>
+                                        <div class="col-4 d-grid">
                                             <button type="submit" name="cardDouble" class="text-white bg-primary rounded-3 border-0 py-2 px-2">Doubler</button>
                                         </div>
                                     <?php endif ?>
@@ -206,7 +211,7 @@ $db = new Database();
                             </form>
 
                             <div class="text-center pb-5 pt-0">
-                                <h1 class="py-5"><span class="playerScore"><?php echo($joueurs[$i]['score']); ?></span></h1>
+                                <h1 class="py-5"><span class="playerScore"><?php if ($joueurs[$i]['asCard']) echo($joueurs[$i]['score']."/".($joueurs[$i]['score'] + 10)); else echo($joueurs[$i]['score']); ?></span></h1>
                             </div>
 
                         <!-- Mise + Score -->
@@ -229,7 +234,7 @@ $db = new Database();
                         <!-- Score uniquement -->
                         <?php else: ?>
                             <div class="text-center py-5">
-                                <h1 class="py-5"><span class="playerScore"><?php if (isset($joueurs[$i])) echo($joueurs[$i]['score']); else echo("0"); ?></span></h1>
+                                <h1 class="py-5"><span class="playerScore"><?php if (isset($joueurs[$i])) { if ($joueurs[$i]['asCard']) echo($joueurs[$i]['score']."/".($joueurs[$i]['score'] + 10)); else echo($joueurs[$i]['score']); } else echo("0"); ?></span></h1>
                             </div>
                         <?php endif ?>
                     </div>
@@ -251,7 +256,7 @@ $db = new Database();
                     <div class="row">
                         <div class="col">
                             <form action="game.php" method="post" class="d-grid">
-                                <button type="submit" name="partyStart" class="text-white bg-perso rounded-3 fs-4 py-2 px-4 border-0">Start</button>
+                                <button type="submit" name="partyStart" class="text-white bg-perso rounded-3 fs-4 py-2 px-4 border-0" onclick="startBtn(event)">Start</button>
                             </form>
                         </div>
                     </div>
