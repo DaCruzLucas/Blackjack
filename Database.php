@@ -311,7 +311,6 @@ class Database {
             $stmt = $this->dbh->prepare($sql);
             $stmt->bindValue(':idPartie', $idPartie, PDO::PARAM_INT);
             $stmt->execute();
-            
             $result = $stmt->fetch(PDO::FETCH_ASSOC);
             
             if ($result) {
@@ -578,64 +577,64 @@ class Database {
 
     function endParty($idPartie) {
         try {
-            $sql = "SELECT idUser, score, doubler, blackjack, mise FROM Joueurs WHERE idPartie = :idPartie";
+            // Requête des données des joueurs
+            $sql = "SELECT Joueurs.idUser, Joueurs.score, Joueurs.doubler, Joueurs.blackjack, Joueurs.mise, Users.money FROM Joueurs INNER JOIN Users ON Joueurs.idUser = Users.idUser WHERE Joueurs.idPartie = :idPartie";
             $stmt = $this->dbh->prepare($sql);
             $stmt->bindValue(':idPartie', $idPartie, PDO::PARAM_INT);
             $stmt->execute();
             $joueurs = $stmt->fetchAll();
 
-            $sql = "SELECT croupier, croupier2 FROM Parties WHERE idPartie = :idPartie";
+            // Requête des données de la partie
+            $sql = "SELECT croupier, croupier2, asCard FROM Parties WHERE idPartie = :idPartie";
             $stmt = $this->dbh->prepare($sql);
             $stmt->bindValue(':idPartie', $idPartie, PDO::PARAM_INT);
             $stmt->execute();
             $party = $stmt->fetch();
 
+            // Définition des variables
             $croupier = $party['croupier'] + $party['croupier2'];
+            $asCard = $party['asCard'];
 
+            // Logique des cartes du croupier
+            if ($croupier < 17) {
+                while (true) {
+                    $carte = $this->pickRandomCard($idPartie);
+
+                    if ($carte == 0) {
+                        $carte = 10;
+                    }
+                    else if ($carte == 1) {
+                        $asCard = 1;
+                    }
+
+                    $croupier += $carte;
+                    
+                    if ($asCard == 1 && $croupier + 10 > 21) {
+                        $asCard = 0;
+                    }
+                    else if ($asCard == 1 && $croupier + 10 >= 17) {
+                        $asCard = 0;
+                        $croupier += 10;
+                        break;
+                    }
+                    else if ($croupier > 17) {
+                        break;
+                    }
+                }
+            }
+
+            // Mise à jour du score du croupier
             $sql = "UPDATE Parties SET croupier = :croupier WHERE idPartie = :idPartie";
             $stmt = $this->dbh->prepare($sql);
             $stmt->bindValue(':croupier', $croupier, PDO::PARAM_INT);
             $stmt->bindValue(':idPartie', $idPartie, PDO::PARAM_INT);
             $stmt->execute();
 
-
-            while (true) {
-                $carte = $this->pickRandomCard($idPartie);
-
-                $asCard = 0;
-
-                if ($carte == 0) {
-                    $carte = 10;
-                }
-                else if ($carte == 1) {
-                    $asCard = 1;
-                }
-
-                $croupier += $carte;
-                
-                if ($asCard == 1 && $croupier + 10 > 21) {
-                    $asCard = 0;
-                }
-                else if ($asCard == 1 && $croupier + 10 >= 17) {
-                    $asCard = 0;
-                    $croupier += 10;
-                    break;
-                }
-                else if ($croupier > 17) {
-                    break;
-                }
-    
-                $sql = "UPDATE Parties SET croupier = :croupier, asCard = :asCard WHERE idPartie = :idPartie";
-                $stmt = $this->dbh->prepare($sql);
-                $stmt->bindValue(':croupier', $croupier, PDO::PARAM_INT);
-                $stmt->bindValue(':asCard', $asCard, PDO::PARAM_BOOL);
-                $stmt->bindValue(':idPartie', $idPartie, PDO::PARAM_INT);
-                $stmt->execute();
-            }
-
+            // Mise à jour du statut des joueurs
             foreach ($joueurs as $joueur) {
+                // Logique de calcul du statut
                 if ($joueur['score'] <= 21) {
-                    if ($joueur['score'] < $party['croupier']) {
+                    if ($joueur['score'] > $croupier || $croupier > 21) {
                         if ($joueur['blackjack'] == true) {
                             $gains = $joueur['mise'] * 2.5;
                             $hasWon = 1; // Blackjack
@@ -650,7 +649,7 @@ class Database {
                         }
                         
                     }
-                    else if ($joueur['score'] == $party['croupier']) {
+                    else if ($joueur['score'] == $croupier) {
                         $gains = $joueur['mise'];
                         $hasWon = 4; // Egalité
                     }
@@ -664,28 +663,28 @@ class Database {
                     $hasWon = 5; // Perdu
                 }
 
-                $sql = "SELECT money FROM Users WHERE idUser = :idUser";
-                $stmt = $this->dbh->prepare($sql);
-                $stmt->bindValue(':idUser', $joueur['idUser'], PDO::PARAM_INT);
-                $stmt->execute();
-                $oldMoney = $stmt->fetch();
+                $newMoney = $joueur['money'] + $gains;
 
-                $newMoney = $oldMoney['money'] + $gains;
-
+                // Mise à jour de l'argent
                 $sql = "UPDATE Users SET money = :newMoney WHERE idUser = :idUser";
                 $stmt = $this->dbh->prepare($sql);
                 $stmt->bindValue(':idUser', $joueur['idUser'], PDO::PARAM_INT);
                 $stmt->bindValue(':newMoney', $newMoney, PDO::PARAM_INT);
                 $stmt->execute();
 
+                // Mise à jour du statut
                 $sql = "UPDATE Joueurs SET hasWon = :hasWon WHERE idUser = :idUser";
                 $stmt = $this->dbh->prepare($sql);
                 $stmt->bindValue(':idUser', $joueur['idUser'], PDO::PARAM_INT);
                 $stmt->bindValue(':hasWon', $hasWon, PDO::PARAM_INT);
                 $stmt->execute();
+
+                // Changer le statut de la partie
+                $sql = "UPDATE Parties SET status = 'Résultats' WHERE idPartie = :idPartie";
+                $stmt = $this->dbh->prepare($sql);
+                $stmt->bindValue(':idPartie', $idPartie, PDO::PARAM_INT);
+                $stmt->execute();
             }
-
-
         }
         catch (PDOException $e) {
             echo "Erreur lors de l'interaction : " . $e->getMessage();
@@ -801,7 +800,7 @@ class Database {
 
             // Suppression de l'argent
             $money = $result['money'] - $result['mise'];
-            $sql = "UPDATE Users SET moeny = :newMoney WHERE idUser = :idUser";
+            $sql = "UPDATE Users SET money = :newMoney WHERE idUser = :idUser";
             $stmt = $this->dbh->prepare($sql);
             $stmt->bindValue(':newMoney', $money, PDO::PARAM_INT);
             $stmt->bindValue(':idUser', $userId, PDO::PARAM_INT);
@@ -841,7 +840,7 @@ class Database {
             $stmt->bindValue(':idPartie', $idPartie, PDO::PARAM_INT);
             $stmt->bindValue(':idUser', $userId, PDO::PARAM_INT);
             $stmt->execute();
-            
+
             $this->setPartyTour($idPartie);
         }
         catch (PDOException $e) {

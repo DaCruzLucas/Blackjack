@@ -219,7 +219,7 @@ $db = new Database();
                             <form action="game.php" method="post">
                                 <div class="row mt-2">
                                     <div class="col-8 d-grid">
-                                        <input type="text" name="bet" placeholder="Montant" required class="text-center rounded-3 border-0">
+                                        <input type="number" name="bet" placeholder="Montant" required class="text-center rounded-3 border-0" min="0">
                                     </div>
                                     <div class="col-4 d-grid">
                                         <button type="submit" class="text-white bg-perso rounded-3 border-0 py-2 px-3">Miser</button>
@@ -253,13 +253,25 @@ $db = new Database();
             <div class="col-3">
                 <!-- Bouton start -->
                 <?php if ($_SESSION['user']['idUser'] == $db->getPartyOwner($_SESSION['selectedParty'])['idUser'] && $db->getPartyStatus($_SESSION['selectedParty']) == "En attente"): ?>
-                    <div class="row">
-                        <div class="col">
-                            <form action="game.php" method="post" class="d-grid">
-                                <button type="submit" name="partyStart" class="text-white bg-perso rounded-3 fs-4 py-2 px-4 border-0" onclick="startBtn(event)">Start</button>
-                            </form>
+                    <?php $status = $db->getPartyStatus($_SESSION['selectedParty']); ?>
+                    <?php if ($status == "En attente"): ?>
+                        <div class="row">
+                            <div class="col">
+                                <form action="game.php" method="post" class="d-grid">
+                                    <button type="submit" name="partyStart" class="text-white bg-perso rounded-3 fs-4 py-2 px-4 border-0" onclick="startBtn(event)">Lancer</button>
+                                </form>
+                            </div>
                         </div>
-                    </div>
+                    <?php endif ?>
+                    <?php if ($status == "Résultats"): ?>
+                        <div class="row">
+                            <div class="col">
+                                <form action="game.php" method="post" class="d-grid">
+                                    <button type="submit" name="partyRestart" class="text-white bg-perso rounded-3 fs-4 py-2 px-4 border-0" onclick="startBtn(event)">Relancer</button>
+                                </form>
+                            </div>
+                        </div>
+                    <?php endif ?>
                 <?php endif ?>
             </div>
         </div>
