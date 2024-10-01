@@ -81,12 +81,6 @@ $db = new Database();
 
         }, 1000);
     </script>
-
-    <script>
-        function tirerCartes() {
-            
-        };
-    </script>
 </head>
 
 <body>
@@ -216,7 +210,7 @@ $db = new Database();
                             </div>
 
                         <!-- Mise + Score -->
-                        <?php elseif (isset($joueurs[$i]) && $joueurs[$i]['idUser'] == $_SESSION['user']['idUser'] && $joueurs[$i]['mise'] == -1): ?>
+                        <?php elseif (isset($joueurs[$i]) && $joueurs[$i]['idUser'] == $_SESSION['user']['idUser'] && $joueurs[$i]['mise'] == -1 && $db->getPartyStatus($_SESSION['selectedParty']) == "En attente"): ?>
                             <form action="game.php" method="post">
                                 <div class="row mt-2">
                                     <div class="col-8 d-grid">

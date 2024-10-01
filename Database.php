@@ -113,6 +113,11 @@ class Database {
         $sql2 = "INSERT INTO Joueurs (idUser, idPartie, chef, mise, canPlay, doubler, blackjack, score, asCard, refresh, canDouble, hasWon) VALUES (:idUser, :idPartie, :chef, :mise, :canPlay, :doubler, :blackjack, :score, :asCard, :refresh, :canDouble, :hasWon)";
 
         try {
+            // $sqlDelete = "DELETE FROM Joueurs WHERE idUser = :userId";
+            // $stmtDelete = $this->dbh->prepare($sqlDelete);
+            // $stmtDelete->bindValue(':userId', $userId, PDO::PARAM_INT);
+            // $stmtDelete->execute();
+
             $stmt = $this->dbh->prepare($sql);
             $stmt->bindValue(':status', 'En attente', PDO::PARAM_STR);
             $stmt->bindValue(':private', $private, PDO::PARAM_BOOL);
@@ -158,6 +163,12 @@ class Database {
         $sql = "INSERT INTO Joueurs (idUser, idPartie, chef, mise, canPlay, doubler, blackjack, score, asCard, refresh, canDouble, hasWon) VALUES (:userId, :idPartie, 0, -1, 0, 0, 0, 0, 0, 0, 1, 0)";
 
         try {
+            // $sqlDelete = "DELETE FROM Joueurs WHERE idUser = :idUser AND idPartie != :idPartie";
+            // $stmtDelete = $this->dbh->prepare($sqlDelete);
+            // $stmtDelete->bindValue(':idUser', $userId, PDO::PARAM_INT);
+            // $stmtDelete->bindValue(':idPartie', $idPartie, PDO::PARAM_INT);
+            // $stmtDelete->execute();
+
             $stmtCheck = $this->dbh->prepare($sqlCheck);
             $stmtCheck->bindValue(':idPartie', $idPartie, PDO::PARAM_INT);
             $stmtCheck->execute();
@@ -570,7 +581,34 @@ class Database {
 
     function endParty($idPartie) {
         try {
-            
+            $sql = "SELECT score, doubler, blackjack, mise FROM Joueurs WHERE idPartie = :idPartie";
+            $stmt = $this->dbh->prepare($sql);
+            $stmt->bindValue(':idPartie', $idPartie, PDO::PARAM_INT);
+            $stmt->execute();
+            $joueurs = $stmt->fetchAll();
+
+            $sql = "SELECT croupier FROM Parties WHERE idPartie = :idPartie";
+            $stmt = $this->dbh->prepare($sql);
+            $stmt->bindValue(':idPartie', $idPartie, PDO::PARAM_INT);
+            $stmt->execute();
+            $party = $stmt->fetch();
+
+            foreach ($joueurs as $joueur) {
+                if ($joueur['score'] <= 21) {
+                    if ($joueur['score'] < $party['croupier']) {
+                        $gains = $joueur['mise'] * 2;
+                    }
+                    else if ($joueur['score'] == $party['croupier']) {
+                        $gains = $joueur['mise'];
+                    }
+                    else {
+                        
+                    }
+                }
+                if ($joueur['blackjack'] == true) {
+
+                }
+            }
         }
         catch (PDOException $e) {
             echo "Erreur lors de l'interaction : " . $e->getMessage();
