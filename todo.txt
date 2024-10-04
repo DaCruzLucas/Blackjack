@@ -1,0 +1,3 @@
+$db->leaveGame()
+- bug des -2 d'argent
+- ajouter le idPartie lors de la suppression de Joueurs

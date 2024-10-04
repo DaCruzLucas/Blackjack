@@ -27,13 +27,13 @@
                     <!-- Email -->
                     <div class="row p-1">
                         <div class="offset-4 col-4 d-grid">
-                            <input type="email" name="email" class="border-0 text-center" placeholder="Email" required maxlength="50">
+                            <input type="email" name="email" class="border-0 text-center" placeholder="Email" required maxlength="50" value="<?php if (isset($_GET['email'])) echo($_GET['email']);?>">
                         </div>
                     </div>    
                     <!-- Nom d'utilisateur -->
                     <div class="row p-1">
                         <div class="offset-4 col-4 d-grid">
-                            <input type="text" name="username" class="border-0 text-center" placeholder="Nom d'utilisateur" required maxlength="20">
+                            <input type="text" name="username" class="border-0 text-center" placeholder="Nom d'utilisateur" required maxlength="20" value="<?php if (isset($_GET['username'])) echo($_GET['username']);?>">
                         </div>
                     </div>
                     <!-- Mot de passe -->
@@ -73,14 +73,27 @@
                 }
                 else if (isset($_POST['email']) && isset($_POST['username']) && isset($_POST['password']) && isset($_POST['password2'])) {
                     if ($_POST['password'] == $_POST['password2']) {
-                        $db->createUser($_POST['username'], $_POST['email'], $_POST['password']);
-                        header("Location: index.php");
+                        if ($db->createUser($_POST['username'], $_POST['email'], $_POST['password'])) {
+                            header("Location: index.php");
+                            exit;
+                        }
+                        else {
+                            $email = $_POST['email'];
+                            $username = $_POST['username'];
+                            $_SESSION['error'] = "Nom d'utilisateur déjà utilisé";
+                            header("Location: signup.php"."?email=$email"."&username=$username");
+                            exit;
+                        }
                     }
                     else {
                         echo("Les mots de passes ne correspondent pas");
                     }
                 }
 
+                if (isset($_SESSION['error'])) {
+                    echo($_SESSION['error']);
+                    unset($_SESSION['error']);
+                }
             ?>
         </div>
 

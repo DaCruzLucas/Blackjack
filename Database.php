@@ -13,19 +13,26 @@ class Database {
     }
 
     function createUser($username, $email, $password) {
-        $sql = "SELECT * FROM Users WHERE username = '$username' OR email = '$email'";
-        $result = $this->dbh->query($sql);
+        $sql = "SELECT * FROM Users WHERE username = :username";
+        $stmt = $this->dbh->prepare($sql);
+        $stmt->bindValue(':username', $username, PDO::PARAM_STR);
+        $stmt->execute();
 
-        if ($result->rowCount() > 0) {
-            // echo "L'utilisateur existe déjà.";
+        if ($stmt->rowCount() > 0) {
+            echo "Un utilisateur existe déjà avec ce nom d'utilisateur";
+            return false;
         } 
         else {
-            //$passwordHash = password_hash($password, PASSWORD_DEFAULT);
-            $sql = "INSERT INTO Users (username, email, password) VALUES ('$username', '$email', '$password')";
+            $passwordHash = password_hash($password, PASSWORD_DEFAULT);
+            $sql = "INSERT INTO Users (username, email, password) VALUES (:username, :email, :password)";
             
             try {
-                $this->dbh->query($sql);
-                // echo "Utilisateur créé avec succès";
+                $stmt = $this->dbh->prepare($sql);
+                $stmt->bindValue(':username', $username, PDO::PARAM_STR);
+                $stmt->bindValue(':email', $email, PDO::PARAM_STR);
+                $stmt->bindValue(':password', $passwordHash, PDO::PARAM_STR);
+                $stmt->execute();
+                return true;
             } 
             catch (PDOException $e) {
                 echo("Erreur lors de la création de l'utilisateur :".$e->getMessage()."<br>");
@@ -34,47 +41,62 @@ class Database {
     }
 
     function findUser($login, $password) {
-        $sql = "SELECT * FROM Users WHERE username = '$login' OR email = '$login'";
-        $result = $this->dbh->query($sql);
+        $sql = "SELECT * FROM Users WHERE username = :username OR email = :email";
+        $stmt = $this->dbh->prepare($sql);
+        $stmt->bindValue(':username', $login, PDO::PARAM_STR);
+        $stmt->bindValue(':email', $login, PDO::PARAM_STR);
+        $stmt->execute();
+        $user = $stmt->fetch();
+        
 
-        if ($result->rowCount() > 0) {
-            $user = $result->fetch();
-
-            // (password_verify($password, $user['password']))
-            if ($password == $user['password']) {
+        if ($user) {
+            if (password_verify($password, $user['password'])) {
                 $_SESSION['user'] = $user;
                 header("Location: index.php");
-            } 
+            }
             else {
-                // echo "Identifiant ou mot de passe incorrect";
+                echo "Identifiant ou mot de passe incorrect";
             }
         }
         else {
-            // echo "Identifiant ou mot de passe incorrect";
+            echo "Identifiant ou mot de passe incorrect";
         }
     }
 
     function checkPassword($password) {
         $userId = $_SESSION["user"]["idUser"];
-        $sql = "SELECT * FROM Users WHERE idUser = '$userId' AND password = '$password'";
-        $result = $this->dbh->query($sql);
+        $sql = "SELECT password FROM Users WHERE idUser = :idUser";
 
-        if ($result->rowCount() > 0) {
-            return true;
+        $stmt = $this->dbh->prepare($sql);
+        $stmt->bindValue(':idUser', $userId, PDO::PARAM_STR);
+        $stmt->execute();
+        $user = $stmt->fetch();
+
+        if ($user) {
+            if (password_verify($password, $user['password'])) {
+                return true;
+            }
+            else {
+                return false;
+            }
         }
         else {
-            echo "Mot de passe incorrect";
+            echo "Identifiant ou mot de passe incorrect";
             return false;
         }
     }
 
     function editPassword($newPassword) {
         $userId = $_SESSION["user"]["idUser"];
-        $sql = "UPDATE Users SET password = '$newPassword' WHERE idUser = '$userId'";
+        $passwordHash = password_hash($newPassword, PASSWORD_DEFAULT);
 
         try {
-            $this->dbh->query($sql);
-            // echo "Mot de passe mis à jour avec succès.";
+            $sql = "UPDATE Users SET password = :password WHERE idUser = :idUser";
+            $stmt = $this->dbh->prepare($sql);
+            $stmt->bindValue(':idUser', $userId, PDO::PARAM_STR);
+            $stmt->bindValue(':password', $passwordHash, PDO::PARAM_STR);
+            $stmt->execute();
+            $user = $stmt->fetch();
         } 
         catch (PDOException $e) {
             echo "Erreur lors de la mise à jour du mot de passe : " . $e->getMessage();
@@ -247,7 +269,9 @@ class Database {
             unset($_SESSION['selectedParty']);
             // echo "Vous avez quitté la partie.";
 
-            $this->setPartyTour($idPartie);
+            if ($this->getPartyTour($idPartie) != -1) {
+                $this->setPartyTour($idPartie);
+            }
         } 
         catch (PDOException $e) {
             echo "Erreur lors de la tentative de quitter la partie : " . $e->getMessage();
@@ -270,7 +294,7 @@ class Database {
     }
 
     function getParties() {
-        $sql = "SELECT * FROM Parties WHERE private = :private";
+        $sql = "SELECT * FROM Parties WHERE private = :private ORDER BY idPartie DESC";
 
         try {
             $stmt = $this->dbh->prepare($sql);
@@ -290,9 +314,8 @@ class Database {
     }
 
     function getPartyOwner($idPartie) {
-        $sql = "SELECT Users.* FROM Users INNER JOIN Joueurs ON Users.idUser = Joueurs.idUser WHERE Joueurs.idPartie = :idPartie AND Joueurs.chef = 1";
-
         try {
+            $sql = "SELECT Users.* FROM Users INNER JOIN Joueurs ON Users.idUser = Joueurs.idUser WHERE Joueurs.idPartie = :idPartie AND Joueurs.chef = 1";
             $stmt = $this->dbh->prepare($sql);
             $stmt->bindValue(':idPartie', $idPartie, PDO::PARAM_INT);
             $stmt->execute();
@@ -350,7 +373,7 @@ class Database {
     }
 
     function checkPartyCards($idPartie) {
-        $sql = "SELECT CHAR_LENGTH(cards) AS nbCaracteres FROM Parties WHERE idPartie = :idPartie";
+        $sql = "SELECT CHAR_LENGTH(cards) AS nb FROM Parties WHERE idPartie = :idPartie";
         
         try {
             $stmt = $this->dbh->prepare($sql);
@@ -359,10 +382,11 @@ class Database {
             
             $result = $stmt->fetch(PDO::FETCH_ASSOC);
             
-            if ($result && $result['nbCaracteres'] <= 20) {
-                $sql2 = "UPDATE Parties SET cards = :updatedCards WHERE idPartie = :idPartie";
-                $stmt2 = $this->dbh->prepare($sql2);
-                $stmt2->bindValue(':updatedCards', '1234567890000123456789000012345678900001234567890000', PDO::PARAM_STR);
+            if ($result && $result['nb'] <= 20) {
+                $sql = "UPDATE Parties SET cards = :updatedCards WHERE idPartie = :idPartie";
+                $stmt = $this->dbh->prepare($sql);
+                $stmt->bindValue(':updatedCards', '1234567890000123456789000012345678900001234567890000', PDO::PARAM_STR);
+                $stmt->bindValue(':idPartie', $idPartie, PDO::PARAM_INT);
                 $stmt->execute();
             }
         } 
@@ -434,16 +458,32 @@ class Database {
         }
     }
     
+    function resetParty($idPartie) {
+        try {
+            $sql = "UPDATE Joueurs SET mise = -1, doubler = 0, score = 0, canDouble = 1, hasWon = 0 WHERE idPartie = :idPartie";
+            $stmt = $this->dbh->prepare($sql);
+            $stmt->bindValue(':idPartie', $idPartie, PDO::PARAM_STR);
+            $stmt->execute();
+
+            $sql = "UPDATE Parties SET croupier = 0, croupier2 = 0, status = 'En attente' WHERE idPartie = :idPartie";
+            $stmt = $this->dbh->prepare($sql);
+            $stmt->bindValue(':idPartie', $idPartie, PDO::PARAM_STR);
+            $stmt->execute();
+        }
+        catch (PDOException $e) {
+            echo "Erreur lors de l'interaction : " . $e->getMessage();
+        }
+    }
     
     function startParty($idPartie) {
         try {
             // Changer le status de la partie
             $sql = "UPDATE Parties SET status = 'Tirage des cartes' WHERE idPartie = :idPartie";
             $stmt = $this->dbh->prepare($sql);
-            $stmt->bindValue(':idPartie', $idPartie, PDO::PARAM_STR);
+            $stmt->bindValue(':idPartie', $idPartie, PDO::PARAM_INT);
             $stmt->execute();
             
-            $sql = "SELECT Joueurs.idUser, Joueurs.mise, Joueurs.score, Users.username, Users.money FROM Joueurs INNER JOIN Users ON Joueurs.idUser = Users.idUser WHERE Joueurs.idPartie = :idPartie ORDER BY Joueurs.idJoueur";
+            $sql = "SELECT Joueurs.idUser, Joueurs.mise, Joueurs.score, Users.username, Users.money, Joueurs.cards FROM Joueurs INNER JOIN Users ON Joueurs.idUser = Users.idUser WHERE Joueurs.idPartie = :idPartie ORDER BY Joueurs.idJoueur";
             $stmt = $this->dbh->prepare($sql);
             $stmt->bindValue(':idPartie', $idPartie, PDO::PARAM_INT);
             $stmt->execute();
@@ -458,11 +498,36 @@ class Database {
                     $stmt->bindValue(':idUser', $joueur['idUser'], PDO::PARAM_INT);
                     $stmt->execute();
 
+                    $asCard = 0;
+                    $blackjack = 0;
+
                     for ($i= 0; $i < 2; $i++) {
                         $carte = $this->pickRandomCard($idPartie);
+                        // if ($i == 0) {
+                        //     $carte = 1;
+                        // }
+                        // if ($i == 1) {
+                        //     $carte = 0;
+                        // }
 
-                        $asCard = 0;
-                        $blackjack = 0;
+                        // // DEBUG
+                        // $sql = "SELECT Joueurs.cards FROM Joueurs WHERE idPartie = :idPartie AND idUser = :idUser";
+                        // $stmt = $this->dbh->prepare($sql);
+                        // $stmt->bindValue(':idPartie', $idPartie, PDO::PARAM_INT);
+                        // $stmt->bindValue(':idUser', $joueur['idUser'], PDO::PARAM_INT);
+                        // $stmt->execute();
+                        // $debug = $stmt->fetch();
+
+                        // $cards = $debug['cards'];
+                        // $cards .= $carte;
+
+                        // $sql = "UPDATE Joueurs SET cards = :cards WHERE idPartie = :idPartie AND idUser = :idUser";
+                        // $stmt = $this->dbh->prepare($sql);
+                        // $stmt->bindValue(':idPartie', $idPartie, PDO::PARAM_INT);
+                        // $stmt->bindValue(':idUser', $joueur['idUser'], PDO::PARAM_INT);
+                        // $stmt->bindValue(':cards', $cards, PDO::PARAM_STR);
+                        // $stmt->execute();
+                        // // DEBUG
                     
                         $sql = "SELECT score FROM Joueurs WHERE idPartie = :idPartie AND idUser = :idUser";
                         $stmt = $this->dbh->prepare($sql);
@@ -508,6 +573,8 @@ class Database {
             // Tirage croupier
             $carte1 = $this->pickRandomCard($idPartie);
             $carte2 = $this->pickRandomCard($idPartie);
+            // $carte1 = 1;
+            // $carte2 = 1;
 
             $asCard = 0;
             $blackjack = 0;
@@ -526,6 +593,7 @@ class Database {
                 $blackjack = 1;
                 $asCard = 0;
                 $carte1 = 21;
+                $carte2 = 0;
             }
             else if ($asCard == 1 && $carte1 + $carte2 + 10 > 21) {
                 $asCard = 0;
@@ -561,8 +629,7 @@ class Database {
                 $stmt->bindValue(':idPartie', $idPartie, PDO::PARAM_INT);
                 $stmt->execute();
 
-                // Changer les mises à 0
-                $sql = "UPDATE Joueurs SET canPlay = 1, refresh = 1 WHERE idPartie = :idPartie AND mise > 0";
+                $sql = "UPDATE Joueurs SET canPlay = 1, refresh = 1 WHERE idPartie = :idPartie AND mise > 0 AND blackjack = 0";
                 $stmt = $this->dbh->prepare($sql);
                 $stmt->bindValue(':idPartie', $idPartie, PDO::PARAM_INT);
                 $stmt->execute();
@@ -594,9 +661,17 @@ class Database {
             // Définition des variables
             $croupier = $party['croupier'] + $party['croupier2'];
             $asCard = $party['asCard'];
-
+            
             // Logique des cartes du croupier
-            if ($croupier < 17) {
+
+            if ($asCard == 1 && $croupier + 10 > 21) {
+                $asCard = 0;
+            }
+            else if ($asCard == 1 && $croupier + 10 >= 17) {
+                $asCard = 0;
+                $croupier += 10;
+            }
+            else if ($croupier < 17) {
                 while (true) {
                     $carte = $this->pickRandomCard($idPartie);
 

@@ -124,8 +124,13 @@ $db = new Database();
             }
 
             if (isset($_POST["partyStart"])) {
-                $db->checkPartyCards($_SESSION["selectedParty"]);                
+                $db->checkPartyCards($_SESSION["selectedParty"]);
                 $db->startParty($_SESSION["selectedParty"]);
+                header("Location: game.php");
+                exit();
+            }
+            else if (isset($_POST["partyRestart"])) {
+                $db->resetParty($_SESSION["selectedParty"]);
                 header("Location: game.php");
                 exit();
             }
@@ -252,7 +257,7 @@ $db = new Database();
             </div>
             <div class="col-3">
                 <!-- Bouton start -->
-                <?php if ($_SESSION['user']['idUser'] == $db->getPartyOwner($_SESSION['selectedParty'])['idUser'] && $db->getPartyStatus($_SESSION['selectedParty']) == "En attente"): ?>
+                <?php if ($_SESSION['user']['idUser'] == $db->getPartyOwner($_SESSION['selectedParty'])['idUser']): ?>
                     <?php $status = $db->getPartyStatus($_SESSION['selectedParty']); ?>
                     <?php if ($status == "En attente"): ?>
                         <div class="row">
@@ -263,6 +268,7 @@ $db = new Database();
                             </div>
                         </div>
                     <?php endif ?>
+                    <!-- Bouton restart -->
                     <?php if ($status == "Résultats"): ?>
                         <div class="row">
                             <div class="col">
