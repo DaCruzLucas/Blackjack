@@ -41,10 +41,9 @@ class Database {
     }
 
     function findUser($login, $password) {
-        $sql = "SELECT * FROM Users WHERE username = :username OR email = :email";
+        $sql = "SELECT * FROM Users WHERE username = :username";
         $stmt = $this->dbh->prepare($sql);
         $stmt->bindValue(':username', $login, PDO::PARAM_STR);
-        $stmt->bindValue(':email', $login, PDO::PARAM_STR);
         $stmt->execute();
         $user = $stmt->fetch();
         
